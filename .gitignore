@@ -54,3 +54,4 @@ MANIFEST
 # optimizedSD:
 /log/**/*.png
 /log/log.csv
+/flagged/*
