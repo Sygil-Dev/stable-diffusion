@@ -49,3 +49,8 @@ MANIFEST
 # 	Repo-specific
 # =========================================================================== #
 /src/*
+/outputs/*
+
+# optimizedSD:
+/log/**/*.png
+/log/log.csv
