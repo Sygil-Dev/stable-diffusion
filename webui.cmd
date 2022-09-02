@@ -2,16 +2,16 @@
 
 set conda_env_name=ldo
 
-:: Put the path to conda directory after "=" sign if it's installed at non-standard path:
-set cutom_conda_path=
+:: Put the path to conda directory in the custom-conda-path.txt file if it's installed at non-standard path:
+FOR /F %%i IN (custom-conda-path.txt) DO set custom_conda_path=%%i
 
 set paths=%ProgramData%\miniconda3
 set paths=%paths%;%USERPROFILE%\miniconda3
 set paths=%paths%;%ProgramData%\anaconda3
 set paths=%paths%;%USERPROFILE%\anaconda3
 
-IF NOT "%cutom_conda_path%"=="" (
-  set paths=%cutom_conda_path%;%paths%
+IF NOT "%custom_conda_path%"=="" (
+  set paths=%custom_conda_path%;%paths%
 )
 
 for %%a in (%paths%) do ( 
