@@ -2,7 +2,7 @@ version: '3.3'
 
 services:
   stable-diffusion:
-    container_name: sd
+    container_name: sd-hlky
     build:
       context: .
       dockerfile: Dockerfile
