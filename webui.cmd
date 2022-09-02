@@ -2,7 +2,7 @@
 
 set conda_env_name=ldo
 
-:: Put the path to conda directory in the custom-conda-path.txt file if it's installed at non-standard path:
+:: Put the path to conda directory in a file called "custom-conda-path.txt" if it's installed at non-standard path:
 FOR /F %%i IN (custom-conda-path.txt) DO set custom_conda_path=%%i
 
 set paths=%ProgramData%\miniconda3
