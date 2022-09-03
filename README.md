@@ -5,11 +5,10 @@
 ## [Development, testing, bleeding edge, maybe have bugs](https://github.com/hlky/stable-diffusion-webui)
 
 ### Have an **issue**? 
-* If the issue involves the **webUI** and you have the **stable version** from **_this repo_** create the issue on **_this repo_**
-* If the issue involves the **webUI** and you have the **development version** from **_[hlky/stable-diffusion-webui](https://github.com/hlky/stable-diffusion-webui)_** create the issue on **_[hlky/stable-diffusion-webui](https://github.com/hlky/stable-diffusion-webui)_**
+
 * If the issue involves _a bug_ in **textual-inversion** create the issue on **_[hlky/stable-diffusion-webui](https://github.com/hlky/stable-diffusion-webui)_**
 * If you want to know how to **activate** or **use** textual-inversion see **_[hlky/sd-enable-textual-inversion](https://github.com/hlky/sd-enable-textual-inversion)_**. Activation not working? create the issue on **_[hlky/stable-diffusion-webui](https://github.com/hlky/stable-diffusion-webui)_**
-* If the issue involves anything else create the issue on **_this repo_**
+
 
 ## More documentation about features, troubleshooting, common issues very soon
 ### Want to help with documentation? Documented something? Use [Discussions](https://github.com/hlky/stable-diffusion/discussions)
