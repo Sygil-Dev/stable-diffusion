@@ -17,8 +17,9 @@ set paths=%paths%;%ProgramData%\anaconda3
 set paths=%paths%;%USERPROFILE%\anaconda3
 
 for %%a in (%paths%) do (
-IF NOT "%custom_conda_path%"=="" (
-  set paths=%custom_conda_path%;%paths%
+ IF NOT "%custom_conda_path%"=="" (
+   set paths=%custom_conda_path%;%paths%
+ )
 )
 
 for %%a in (%paths%) do ( 
