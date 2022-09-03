@@ -6,7 +6,7 @@ WORKDIR /sd
 SHELL ["/bin/bash", "-c"]
 
 RUN apt-get update && \
-    apt-get install -y libglib2.0-0 wget && \
+    apt-get install -y libglib2.0-0 libx11-6 wget && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
