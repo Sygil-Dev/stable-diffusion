@@ -1,11 +1,14 @@
 import gradio as gr
 from frontend.css_and_js import css, js, call_JS, js_parse_prompt, js_copy_txt2img_output
+from frontend.job_manager import JobManager
 import frontend.ui_functions as uifn
+import uuid
 
 def draw_gradio_ui(opt, img2img=lambda x: x, txt2img=lambda x: x,imgproc=lambda x: x, txt2img_defaults={}, RealESRGAN=True, GFPGAN=True,LDSR=True,
                    txt2img_toggles={}, txt2img_toggle_defaults='k_euler', show_embeddings=False, img2img_defaults={},
                    img2img_toggles={}, img2img_toggle_defaults={}, sample_img2img=None, img2img_mask_modes=None,
-                   img2img_resize_modes=None, imgproc_defaults={},imgproc_mode_toggles={},user_defaults={}, run_GFPGAN=lambda x: x, run_RealESRGAN=lambda x: x):
+                   img2img_resize_modes=None, imgproc_defaults={},imgproc_mode_toggles={},user_defaults={}, run_GFPGAN=lambda x: x, run_RealESRGAN=lambda x: x,
+                   job_manager: JobManager = None) -> gr.Blocks:
 
     with gr.Blocks(css=css(opt), analytics_enabled=False, title="Stable Diffusion WebUI") as demo:
         with gr.Tabs(elem_id='tabss') as tabs:
@@ -34,6 +37,8 @@ def draw_gradio_ui(opt, img2img=lambda x: x, txt2img=lambda x: x,imgproc=lambda 
                         txt2img_batch_count = gr.Slider(minimum=1, maximum=50, step=1,
                                                         label='Number of images to generate',
                                                         value=txt2img_defaults['n_iter'])
+
+                        txt2img_job_ui = job_manager.draw_gradio_ui() if job_manager else None
 
                         txt2img_dimensions_info_text_box = gr.Textbox(label="Aspect ratio (4:3 = 1.333 | 16:9 = 1.777 | 21:9 = 2.333)")
                     with gr.Column():
@@ -98,20 +103,33 @@ def draw_gradio_ui(opt, img2img=lambda x: x, txt2img=lambda x: x,imgproc=lambda 
                         txt2img_embeddings = gr.File(label="Embeddings file for textual inversion",
                                                      visible=show_embeddings)
 
+                txt2img_func = txt2img
+                txt2img_inputs = [txt2img_prompt, txt2img_steps, txt2img_sampling, txt2img_toggles,
+                                  txt2img_realesrgan_model_name, txt2img_ddim_eta, txt2img_batch_count,
+                                  txt2img_batch_size, txt2img_cfg, txt2img_seed, txt2img_height, txt2img_width,
+                                  txt2img_embeddings, txt2img_variant_amount, txt2img_variant_seed]
+                txt2img_outputs = [output_txt2img_gallery, output_txt2img_seed,
+                                   output_txt2img_params, output_txt2img_stats]
+
+                # If a JobManager was passed in then wrap the Generate functions
+                if txt2img_job_ui:
+                    txt2img_func, txt2img_inputs, txt2img_outputs = txt2img_job_ui.wrap_func(
+                        func=txt2img_func,
+                        inputs=txt2img_inputs,
+                        outputs=txt2img_outputs
+                    )
+
                 txt2img_btn.click(
-                    txt2img,
-                    [txt2img_prompt, txt2img_steps, txt2img_sampling, txt2img_toggles, txt2img_realesrgan_model_name,
-                     txt2img_ddim_eta, txt2img_batch_count, txt2img_batch_size, txt2img_cfg, txt2img_seed,
-                     txt2img_height, txt2img_width, txt2img_embeddings, txt2img_variant_amount, txt2img_variant_seed],
-                    [output_txt2img_gallery, output_txt2img_seed, output_txt2img_params, output_txt2img_stats]
+                    txt2img_func,
+                    txt2img_inputs,
+                    txt2img_outputs
                 )
                 txt2img_prompt.submit(
-                    txt2img,
-                    [txt2img_prompt, txt2img_steps, txt2img_sampling, txt2img_toggles, txt2img_realesrgan_model_name,
-                     txt2img_ddim_eta, txt2img_batch_count, txt2img_batch_size, txt2img_cfg, txt2img_seed,
-                     txt2img_height, txt2img_width, txt2img_embeddings, txt2img_variant_amount, txt2img_variant_seed],
-                    [output_txt2img_gallery, output_txt2img_seed, output_txt2img_params, output_txt2img_stats]
+                    txt2img_func,
+                    txt2img_inputs,
+                    txt2img_outputs
                 )
+
                 # txt2img_width.change(fn=uifn.update_dimensions_info, inputs=[txt2img_width, txt2img_height], outputs=txt2img_dimensions_info_text_box)
                 # txt2img_height.change(fn=uifn.update_dimensions_info, inputs=[txt2img_width, txt2img_height], outputs=txt2img_dimensions_info_text_box)
 
@@ -149,7 +167,7 @@ def draw_gradio_ui(opt, img2img=lambda x: x, txt2img=lambda x: x,imgproc=lambda 
 
                         with gr.Tabs():
                             with gr.TabItem("Editor Options"):
-                                with gr.Column():
+                                with gr.Row():
                                     img2img_image_editor_mode = gr.Radio(choices=["Mask", "Crop", "Uncrop"], label="Image Editor Mode",
                                                              value="Crop", elem_id='edit_mode_select')
                                     img2img_mask = gr.Radio(choices=["Keep masked area", "Regenerate only masked area"],
@@ -173,6 +191,7 @@ def draw_gradio_ui(opt, img2img=lambda x: x, txt2img=lambda x: x,imgproc=lambda 
                     with gr.Column():
                         gr.Markdown('#### Img2Img Results')
                         output_img2img_gallery = gr.Gallery(label="Images", elem_id="img2img_gallery_output").style(grid=[4,4,4])
+                        img2img_job_ui = job_manager.draw_gradio_ui() if job_manager else None
                         with gr.Tabs():
                             with gr.TabItem("Generated image actions", id="img2img_actions_tab"):
                                 gr.Markdown("Select an image, then press one of the buttons below")
@@ -193,6 +212,7 @@ def draw_gradio_ui(opt, img2img=lambda x: x, txt2img=lambda x: x,imgproc=lambda 
                                         inputs=output_img2img_seed, outputs=[],
                                         _js=call_JS("gradioInputToClipboard"), fn=None, show_progress=False)
                                 output_img2img_stats = gr.HTML(label='Stats')
+
                 gr.Markdown('# img2img settings')
 
                 with gr.Row():
@@ -278,24 +298,31 @@ def draw_gradio_ui(opt, img2img=lambda x: x, txt2img=lambda x: x,imgproc=lambda 
                                                                        fromId="img2img_gallery_output")
                                                            )
 
+                img2img_func = img2img
+                img2img_inputs = [img2img_prompt, img2img_image_editor_mode, img2img_image_editor, img2img_image_mask, img2img_mask,
+                                  img2img_mask_blur_strength, img2img_steps, img2img_sampling, img2img_toggles,
+                                  img2img_realesrgan_model_name, img2img_batch_count, img2img_cfg,
+                                  img2img_denoising, img2img_seed, img2img_height, img2img_width, img2img_resize,
+                                  img2img_embeddings]
+                img2img_outputs = [output_img2img_gallery, output_img2img_seed, output_img2img_params, output_img2img_stats]
+
+                # If a JobManager was passed in then wrap the Generate functions
+                if img2img_job_ui:
+                    img2img_func, img2img_inputs, img2img_outputs = img2img_job_ui.wrap_func(
+                        func=img2img_func,
+                        inputs=img2img_inputs,
+                        outputs=img2img_outputs,
+                    )
+
                 img2img_btn_mask.click(
-                    img2img,
-                    [img2img_prompt, img2img_image_editor_mode, img2img_image_mask, img2img_mask,
-                     img2img_mask_blur_strength, img2img_steps, img2img_sampling, img2img_toggles,
-                     img2img_realesrgan_model_name, img2img_batch_count, img2img_cfg,
-                     img2img_denoising, img2img_seed, img2img_height, img2img_width, img2img_resize,
-                     img2img_embeddings],
-                    [output_img2img_gallery, output_img2img_seed, output_img2img_params, output_img2img_stats]
+                    img2img_func,
+                    img2img_inputs,
+                    img2img_outputs
                 )
                 def img2img_submit_params():
-                    return (img2img,
-                    [img2img_prompt, img2img_image_editor_mode, img2img_image_editor, img2img_mask,
-                     img2img_mask_blur_strength, img2img_steps, img2img_sampling, img2img_toggles,
-                     img2img_realesrgan_model_name, img2img_batch_count, img2img_cfg,
-                     img2img_denoising, img2img_seed, img2img_height, img2img_width, img2img_resize,
-                     img2img_embeddings],
-                    [output_img2img_gallery, output_img2img_seed, output_img2img_params, output_img2img_stats])
-
+                    return (img2img_func,
+                    img2img_inputs,
+                    img2img_outputs)
 
                 img2img_btn_editor.click(*img2img_submit_params())
 
@@ -326,6 +353,7 @@ def draw_gradio_ui(opt, img2img=lambda x: x, txt2img=lambda x: x,imgproc=lambda 
                             #select folder with images to process
                                 with gr.TabItem('Batch Process'):
                                     imgproc_folder = gr.File(label="Batch Process", file_count="multiple",source="upload", interactive=True, type="file")
+                            imgproc_pngnfo = gr.Textbox(label="PNG Metadata", placeholder="PngNfo", visible=False, max_lines=5)
                             with gr.Row():
                                 imgproc_btn = gr.Button("Process", variant="primary")
                             gr.HTML("""
@@ -347,47 +375,72 @@ def draw_gradio_ui(opt, img2img=lambda x: x, txt2img=lambda x: x,imgproc=lambda 
                                 with gr.TabItem('Output'):
                                     imgproc_output = gr.Gallery(label="Output", elem_id="imgproc_gallery_output")
                             with gr.Row(elem_id="proc_options_row"):
-                                imgproc_toggles = gr.CheckboxGroup(label='Processor Modes', choices=imgproc_mode_toggles, type="index")
-                            with gr.Tabs():
-                                with gr.TabItem('Fix Face Settings'):
-                                    gfpgan_defaults = {
-                                        'strength': 100,
-                                    }
+                                with gr.Box():
+                                    with gr.Column():
+                                        gr.Markdown("<b>Processor Selection</b>")
+                                        imgproc_toggles = gr.CheckboxGroup(label = '',choices=imgproc_mode_toggles, type="index")
+                                        #.change toggles to show options
+                                        #imgproc_toggles.change()
+                            with gr.Box(visible=False) as gfpgan_group:
 
-                                    if 'gfpgan' in user_defaults:
-                                        gfpgan_defaults.update(user_defaults['gfpgan'])
-                                    if GFPGAN is None:
-                                        gr.HTML("""
-        <div id="90" style="max-width: 100%; font-size: 14px; text-align: center;" class="output-markdown gr-prose border-solid border border-gray-200 rounded gr-panel">
-            <p><b> Please download GFPGAN to activate face fixing features</b>, instructions are available at the <a href='https://github.com/hlky/stable-diffusion-webui'>Github</a></p>
-        </div>
-        """)
-                                        #gr.Markdown("")
-                                        #gr.Markdown("<b> Please download GFPGAN to activate face fixing features</b>, instructions are available at the <a href='https://github.com/hlky/stable-diffusion-webui'>Github</a>")
+                                gfpgan_defaults = {
+                                    'strength': 100,
+                                }
+
+                                if 'gfpgan' in user_defaults:
+                                    gfpgan_defaults.update(user_defaults['gfpgan'])
+                                if GFPGAN is None:
+                                    gr.HTML("""
+    <div id="90" style="max-width: 100%; font-size: 14px; text-align: center;" class="output-markdown gr-prose border-solid border border-gray-200 rounded gr-panel">
+        <p><b> Please download GFPGAN to activate face fixing features</b>, instructions are available at the <a href='https://github.com/hlky/stable-diffusion-webui'>Github</a></p>
+    </div>
+    """)
+                                    #gr.Markdown("")
+                                    #gr.Markdown("<b> Please download GFPGAN to activate face fixing features</b>, instructions are available at the <a href='https://github.com/hlky/stable-diffusion-webui'>Github</a>")
+                                with gr.Column():
+                                    gr.Markdown("<b>GFPGAN Settings</b>")
                                     imgproc_gfpgan_strength = gr.Slider(minimum=0.0, maximum=1.0, step=0.001, label="Effect strength",
                                                                 value=gfpgan_defaults['strength'],visible=GFPGAN is not None)
-                                with gr.TabItem('Upscale Settings'):
-                                    imgproc_realesrgan_model_name = gr.Dropdown(label='RealESRGAN model', interactive=RealESRGAN is not None,
-                                                                                choices= ['RealESRGAN_x4plus',
-                                                                                        'RealESRGAN_x4plus_anime_6B','RealESRGAN_x2plus',
-                                                                                        'RealESRGAN_x2plus_anime_6B'],
-                                                                                value='RealESRGAN_x4plus',
-                                                                                visible=RealESRGAN is not None)  # TODO: Feels like I shouldnt slot it in here.
-                                    if LDSR:
-                                        upscaleModes = ['RealESRGAN','GoBig','Latent Diffusion SR','GoLatent ']
-                                    else:
-                                        gr.HTML("""
-        <div id="90" style="max-width: 100%; font-size: 14px; text-align: center;" class="output-markdown gr-prose border-solid border border-gray-200 rounded gr-panel">
-            <p><b> Please download LDSR to activate more upscale features</b>, instructions are available at the <a href='https://github.com/hlky/stable-diffusion-webui'>Github</a></p>
-        </div>
-        """)
-                                        upscaleModes = ['RealESRGAN','GoBig','Latent Diffusion SR']
-                                        #gr.Markdown("<b> Please download LDSR to activate more upscale features</b>, instructions are available at the <a href='https://github.com/hlky/stable-diffusion-webui'>Github</a>")
-                                        upscaleModes = ['RealESRGAN','GoBig']
-                                    imgproc_upscale_toggles = gr.Radio(label='Upscale Modes', choices=upscaleModes, type="index",visible=RealESRGAN is not None)
+                            with gr.Box(visible=False) as upscale_group:
+
+                                if LDSR:
+                                    upscaleModes = ['RealESRGAN','GoBig','Latent Diffusion SR','GoLatent ']
+                                else:
+                                    gr.HTML("""
+    <div id="90" style="max-width: 100%; font-size: 14px; text-align: center;" class="output-markdown gr-prose border-solid border border-gray-200 rounded gr-panel">
+        <p><b> Please download LDSR to activate more upscale features</b>, instructions are available at the <a href='https://github.com/hlky/stable-diffusion-webui'>Github</a></p>
+    </div>
+    """)
+                                    upscaleModes = ['RealESRGAN','GoBig']
+                                with gr.Column():
+                                    gr.Markdown("<b>Upscaler Selection</b>")
+                                    imgproc_upscale_toggles = gr.Radio(label = '',choices=upscaleModes, type="index",visible=RealESRGAN is not None,value='RealESRGAN')
+                            with gr.Box(visible=False) as upscalerSettings_group:
+
+                                with gr.Box(visible=True) as realesrgan_group:
+                                    with gr.Column():
+                                        gr.Markdown("<b>RealESRGAN Settings</b>")
+                                        imgproc_realesrgan_model_name = gr.Dropdown(label='RealESRGAN model', interactive=RealESRGAN is not None,
+                                                                                    choices= ['RealESRGAN_x4plus',
+                                                                                            'RealESRGAN_x4plus_anime_6B','RealESRGAN_x2plus',
+                                                                                            'RealESRGAN_x2plus_anime_6B'],
+                                                                                    value='RealESRGAN_x4plus',
+                                                                                    visible=RealESRGAN is not None)  # TODO: Feels like I shouldnt slot it in here.
+                                with gr.Box(visible=False) as ldsr_group:
+                                    with gr.Row(elem_id="ldsr_settings_row"):
+                                        with gr.Column():
+                                            gr.Markdown("<b>Latent Diffusion Super Sampling Settings</b>")
+                                            imgproc_ldsr_steps = gr.Slider(minimum=0, maximum=500, step=10, label="LDSR Sampling Steps",
+                                                    value=100,visible=LDSR is not None)
+                                            imgproc_ldsr_pre_downSample = gr.Dropdown(label='LDSR Pre Downsample mode (Lower resolution before processing for speed)',
+                                                        choices=["None", '1/2', '1/4'],value="None",visible=LDSR is not None)
+                                            imgproc_ldsr_post_downSample = gr.Dropdown(label='LDSR Post Downsample mode (aka SuperSampling)',
+                                                        choices=["None", "Original Size", '1/2', '1/4'],value="None",visible=LDSR is not None)
+                                with gr.Box(visible=False) as gobig_group:   
                                     with gr.Row(elem_id="proc_prompt_row"):
                                         with gr.Column():
-                                            imgproc_prompt = gr.Textbox(label="These settings are applied only for GoBig and GoLatent modes",
+                                            gr.Markdown("<b>GoBig Settings</b>")
+                                            imgproc_prompt = gr.Textbox(label="",
                                                                         elem_id='prompt_input',
                                                                         placeholder="A corgi wearing a top hat as an oil painting.",
                                                                         lines=1,
@@ -415,12 +468,25 @@ def draw_gradio_ui(opt, img2img=lambda x: x, txt2img=lambda x: x,imgproc=lambda 
                                             imgproc_btn.click(
                                                         imgproc,
                                                         [imgproc_source, imgproc_folder,imgproc_prompt,imgproc_toggles,
-                                                        imgproc_upscale_toggles,imgproc_realesrgan_model_name,imgproc_sampling, imgproc_steps, imgproc_height, imgproc_width, imgproc_cfg, imgproc_denoising, imgproc_seed,imgproc_gfpgan_strength],
+                                                        imgproc_upscale_toggles,imgproc_realesrgan_model_name,imgproc_sampling, imgproc_steps, imgproc_height,
+                                                            imgproc_width, imgproc_cfg, imgproc_denoising, imgproc_seed,imgproc_gfpgan_strength,imgproc_ldsr_steps,imgproc_ldsr_pre_downSample,imgproc_ldsr_post_downSample],
                                                         [imgproc_output])
+
+                                            imgproc_source.change(
+                                                        uifn.get_png_nfo,
+                                                        [imgproc_source],
+                                                        [imgproc_pngnfo] )
+
                                     output_txt2img_to_imglab.click(
-                                        uifn.copy_img_to_lab,
-                                        [output_txt2img_gallery],
-                                        [imgproc_source, tabs],
+                                        fn=uifn.copy_img_params_to_lab,
+                                        inputs = [output_txt2img_params],
+                                        outputs = [imgproc_prompt,imgproc_seed,imgproc_steps,imgproc_cfg,imgproc_sampling],
+                                        )
+                                    
+                                    output_txt2img_to_imglab.click(
+                                        fn=uifn.copy_img_to_lab,
+                                        inputs = [output_txt2img_gallery],
+                                        outputs = [imgproc_source, tabs],
                                         _js=call_JS("moveImageFromGallery",
                                                     fromId="txt2img_gallery_output",
                                                     toId="imglab_input")
@@ -434,7 +500,13 @@ def draw_gradio_ui(opt, img2img=lambda x: x, txt2img=lambda x: x,imgproc=lambda 
             <p><b> Please download RealESRGAN to activate upscale features</b>, instructions are available at the <a href='https://github.com/hlky/stable-diffusion-webui'>Github</a></p>
         </div>
         """)
-            
+            imgproc_toggles.change(fn=uifn.toggle_options_gfpgan, inputs=[imgproc_toggles], outputs=[gfpgan_group])
+            imgproc_toggles.change(fn=uifn.toggle_options_upscalers, inputs=[imgproc_toggles], outputs=[upscale_group])
+            imgproc_toggles.change(fn=uifn.toggle_options_upscalers, inputs=[imgproc_toggles], outputs=[upscalerSettings_group])
+            imgproc_upscale_toggles.change(fn=uifn.toggle_options_realesrgan, inputs=[imgproc_upscale_toggles], outputs=[realesrgan_group])
+            imgproc_upscale_toggles.change(fn=uifn.toggle_options_ldsr, inputs=[imgproc_upscale_toggles], outputs=[ldsr_group])
+            imgproc_upscale_toggles.change(fn=uifn.toggle_options_gobig, inputs=[imgproc_upscale_toggles], outputs=[gobig_group])                 
+
             """
             if GFPGAN is not None:
                 gfpgan_defaults = {
