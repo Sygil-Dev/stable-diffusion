@@ -67,6 +67,8 @@ import glob
 from typing import List, Union, Dict
 from pathlib import Path
 from collections import namedtuple
+from notifiers import notify
+from dotenv import load_dotenv
 
 from contextlib import contextmanager, nullcontext
 from einops import rearrange, repeat
@@ -776,7 +778,7 @@ def oxlamon_matrix(prompt, seed, n_iter, batch_size):
 
 def process_images(
         outpath, func_init, func_sample, prompt, seed, sampler_name, skip_grid, skip_save, batch_size,
-        n_iter, steps, cfg_scale, width, height, prompt_matrix, use_GFPGAN, use_RealESRGAN, realesrgan_model_name,
+        n_iter, steps, cfg_scale, width, height, prompt_matrix, use_GFPGAN, use_RealESRGAN, send_telegram_notif, realesrgan_model_name,
         fp, ddim_eta=0.0, do_not_save_grid=False, normalize_prompt_weights=True, init_img=None, init_mask=None,
         keep_mask=False, mask_blur_strength=3, denoising_strength=0.75, resize_mode=None, uses_loopback=False,
         uses_random_seed_loopback=False, sort_samples=True, write_info_files=True, write_sample_info_to_log_file=False, jpg_sample=False,
@@ -1081,6 +1083,11 @@ Peak memory usage: { -(mem_max_used // -1_048_576) } MiB / { -(mem_total // -1_0
     #del mem_mon
     torch_gc()
 
+    if send_telegram_notif:
+        message = f"BATCH FINISHED\nPrompt: { prompt }\n\nGenerated { len(output_images) } images using params:\n" +\
+                  " ".join([f"{k}: {v}" for k,v in args_and_names.items()]) + f"s\n{stats}"
+        notify('telegram', message=message)
+
     return output_images, seed, info, stats
 
 
@@ -1098,8 +1105,18 @@ def txt2img(prompt: str, ddim_steps: int, sampler_name: str, toggles: List[int],
     write_info_files = 5 in toggles
     write_to_one_file = 6 in toggles
     jpg_sample = 7 in toggles
-    use_GFPGAN = 8 in toggles
-    use_RealESRGAN = 9 in toggles
+    x = 8
+    if GFPGAN is not None:
+        use_GFPGAN = x in toggles
+        x += 1
+    else:
+        use_GFPGAN = False
+    if RealESRGAN is not None:
+        use_RealESRGAN = x in toggles
+        x += 1
+    else:
+        use_RealESRGAN = False
+    send_telegram_notif = x in toggles
     ModelLoader(['model'],True,False)
     if use_GFPGAN and not use_RealESRGAN:
         ModelLoader(['GFPGAN'],True,False)
@@ -1154,6 +1171,7 @@ def txt2img(prompt: str, ddim_steps: int, sampler_name: str, toggles: List[int],
             prompt_matrix=prompt_matrix,
             use_GFPGAN=use_GFPGAN,
             use_RealESRGAN=use_RealESRGAN,
+            send_telegram_notif=send_telegram_notif,
             realesrgan_model_name=realesrgan_model_name,
             fp=fp,
             ddim_eta=ddim_eta,
@@ -1972,6 +1990,9 @@ if GFPGAN is not None:
     txt2img_toggles.append('Fix faces using GFPGAN')
 if RealESRGAN is not None:
     txt2img_toggles.append('Upscale images using RealESRGAN')
+load_dotenv()
+if os.getenv('NOTIFIERS_TELEGRAM_TOKEN') is not None and os.getenv('NOTIFIERS_TELEGRAM_CHAT_ID') is not None:
+    txt2img_toggles.append('Send Telegram notification')
 
 txt2img_defaults = {
     'prompt': '',
